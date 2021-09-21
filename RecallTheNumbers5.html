@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html>
+<!-- generate simple sounds with js: http://marcgg.com/blog/2016/11/01/javascript-audio/ -->
+<head>
+    <title>Recall the Numbers</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="author" content="Lisa">
+
+    <style>
+        :root {
+            --flashCol: rgba(255, 255, 0, 1);
+            --normalCol: rgba(200, 200, 200, 1);
+            --dialCol: rgba(20, 230, 0, 1);
+            --hangupCol: rgba(250, 25, 0, 1);
+            --clickAnimDuration: 0.25s;
+            --resp0: rgba(250, 25, 0, 0.4);
+            --resp1: rgba(20, 230, 0, 0.4);
+            --respNA: rgba(0, 20, 230, 0.4);
+        }
+
+        body {
+            padding: 10px;
+            margin: auto;
+            width: 90%;
+            max-width: 300px;
+            font-family: Arial;
+        }
+        
+        .smalltxt {
+            font-size: 12px;
+            margin-top: 12px;
+        }
+        section {
+            margin: auto;
+            width: 100%;
+        }
+        hr {
+            border: solid rgba(128, 128, 128, 1) 2px;
+            border-radius: 6px;
+            background-color: rgba(128, 128, 128, 1);
+        }
+        button {
+            min-height: 40px;
+            padding: 4px;
+            margin-top: 4px;
+            margin-bottom: 4px;
+            display: block;
+            font-size: 1.2em;
+            background-color: var(--normalCol);
+            border: solid 2px rgba(0, 0, 0, 1);
+            border-radius: 6px;
+            cursor: pointer;
+            /*transition: 0s 0.25s;*/
+        }
+        button:hover {
+            background-color: rgba(200, 200, 200, 1);
+        }
+        textarea {
+            width: 98%;
+            resize: auto;
+            overflow: auto;
+            border: solid 2px rgba(128, 128, 128, 1);
+            display: block;
+        }
+        input[type="number"] {
+            max-width: 4em;
+            margin-right: 0.5em;
+        }
+        input[type="checkbox"] {
+            min-height: 1.5em;
+            min-width: 1.5em;
+            margin-right: 0.5em;
+        }
+        ul {
+            list-style: none;
+            list-style-position: inside;
+            margin-left: 0;
+            padding-left: 0;
+        }
+        li {
+            text-indent: -1em;
+            padding-left: 1em;
+        }
+        li:before {
+            content: "*";
+            padding-right: 0.5em;
+        }
+        
+        .clickable {
+            transition: 0s var(--clickAnimDuration);
+        }
+        .clickable:active {
+            background-color: var(--flashCol);
+            transition: 0s;
+        }
+        .clicked {
+            background-color: var(--flashCol);
+        }
+        .unclicked {
+            background-color: var(--normalCol);
+        }
+        
+        #dial.clickable:active {
+            background-color: var(--flashCol);
+            transition: 0s;
+        }
+        #hangup.clickable:active {
+            background-color: var(--flashCol);
+            transition: 0s;
+        }
+        #keyboard {
+            display: grid;
+            justify-content: space-between;
+            grid-template-columns: 32% 32% 32%;
+            background-color: rgba(255, 255, 200, 0);
+        }
+        #startBtn {
+            width: 100%;
+            margin-top: 10px;
+        }
+        #gameBtn {
+            width: 100%;
+            margin-top: 20px;
+        }
+        #dsp {
+            min-width: 50px;
+        }
+        
+        .dial {
+            background-color: var(--dialCol);
+        }
+        .dial:hover {
+            background-color: var(--dialCol);
+        }
+        .hangup {
+            background-color: var(--hangupCol);
+        }
+        .hangup:hover {
+            background-color: var(--hangupCol);
+        }
+        
+        .correctResp {
+            background-color: var(--resp1);
+        }
+        .wrongResp {
+            background-color: var(--resp0);
+        }
+        .NAResp {
+            background-color: var(--respNA);
+        }
+    </style>
+    
+</head>
+
+<body>
+    <section id="heading">
+        <h1>Recall the Numbers</h1>
+        <p class="smalltxt">Last modified: 2021-09-17, Lisa</p>
+    </section>
+
+
+
+    <section id="instr"><hr>
+        <h2>Instruction</h2>
+        <p>On each round a sequence of keys flashes on the keypad below: Memorize the order and re-dial the sequence.</p>
+        <p>Start round with the "Start" button.</p>
+        
+        <h3>Parameters</h3>
+        <p>
+            <input type="checkbox" id="hasSound">
+            <label for="hasSound">Sound</label><br>
+            <input type="checkbox" id="feedback">
+            <label for="feedback">Immediate feedback</label>
+        </p>
+        <p>
+            <input type="number" id="nTrials" min=1 maxlength=3 size=4>
+            <label for="nTrials">Rounds [1; 100]</label>
+            <br>
+            <input type="number" id="lvlStart" min=1 maxlength=3 size=4>
+            <label for="lvlStart">Starting level [1; 10]</label>
+        </p>
+
+        <button type="button" class="clickable" id="gameBtn">Start Game</button>
+        <ul class="smalltxt">
+            <li>All sequences end with the green key.</li>
+            <li>Click the red key to indicate, you cannot complete the sequence.</li>
+            <li>After start, the difficulty adjusts to the user's performance.</li>
+        </ul>
+    </section>
+
+
+    <section id="game"><hr>
+        <h2>Game</h2>
+        <p><span class="dsp" id="n">0</span> of <span class="dsp" id="N">0</span></p>
+        <div id="keyboard">
+            <button type="button" class="key" id="1" value=1>1</button>
+            <button type="button" class="key" id="2" value=2>2</button>
+            <button type="button" class="key" id="3" value=3>3</button>
+            <button type="button" class="key" id="4" value=4>4</button>
+            <button type="button" class="key" id="5" value=5>5</button>
+            <button type="button" class="key" id="6" value=6>6</button>
+            <button type="button" class="key" id="7" value=7>7</button>
+            <button type="button" class="key" id="8" value=8>8</button>
+            <button type="button" class="key" id="9" value=9>9</button>
+            <button type="button" class="dial" id="dial" value="d"></button>
+            <button type="button" class="key" id="0" value=0>0</button>
+            <button type="button" class="hangup" id="hangup" value="h"></button>
+        </div>
+        <button type="button" class="clickable" id="startBtn">Start</button>
+    </section>
+
+    
+    <section id="res"><hr>
+        <h2>Result</h2>
+        <textarea id="output" readonly></textarea>
+        <ul class="smalltxt">
+            <li>Too easy?<br>Increase the number of rounds and the starting level.</li>
+            <li>Create simple sounds with javascript:<br>
+                See <a href="https://marcgg.com/blog/2016/11/01/javascript-audio/" rel="noopener noreferrer">marcgg's blog</a> (may need modifications for cross-browser compatibility).
+            </li>
+        </ul>
+    </section>
+
+
+    <script>
+    window.onload = () => {
+        // ---------------------------------
+        // difficulty parameters
+        var N = 10; // max number of trials
+        var lvl = 1; // current length of sequence
+        // ---------------------------------
+        // game loop variables
+        var timestamp;
+        var reqID, outID;
+        var delta = 0;
+        const minDelta = 500;
+        var lastRendered = 0;
+        var isRunning = false;
+        var updateCount = -1;
+        // ---------------------------------
+        // model sequence variables
+        var seqModel; // model sequence
+        var item = -1; // index for model sequence
+        var seqState = [0];
+        var n = -1; // trial counter
+        // ---------------------------------
+        // user response
+        var seqClicked = "";
+        var isAccurate = 0;
+        var high_score = 0; // max length correct
+        var score = 0; // n correct
+        // ---------------------------------
+        // html elements
+        const gameBody = document.getElementsByTagName("body")[0];
+        const game = document.getElementById("game");
+        const keys = document.getElementsByClassName("key");
+        const dialBtn = document.getElementById("dial");
+        const hangupBtn = document.getElementById("hangup");
+        const startBtn = document.getElementById("startBtn");
+        const gameBtn = document.getElementById("gameBtn");
+        const outputTxt = document.getElementById("output"); 
+        outputTxt.value = "n,N,lvl,model,input,isCorrect"; // header
+        // ---------------------------------
+        // sound
+        var hasSound = true;
+        var audioCtx;
+        const soundDuration = 0.2; // s
+        const soundFreq = 830;
+        const soundFreqDial = 440;
+        // ---------------------------------
+        // response feedback
+        var feedback = true;
+        // ---------------------------------
+        // button functions
+        function disableBtns(btns) {
+            for (let i = 0; i < btns.length; i++) {
+                btns[i].disabled = true;
+                btns[i].classList.remove("clickable");
+            }
+        }
+        function enableBtns(btns) {
+            for (let i = 0; i < btns.length; i++) {
+                btns[i].disabled = false;
+                btns[i].classList.add("clickable");
+            }
+        }
+        function getBtnVal(btn) {
+            seqClicked += btn.value;
+        }
+        function trackNumPad(btns) {
+            for (let i = 0; i < btns.length; i++) {
+                btns[i].onclick = function(ev) {
+                    getBtnVal(this); 
+                    if (hasSound) playSound(soundDuration, soundFreq);
+                }
+            }
+            // disable all when dial clicked
+            dialBtn.onclick = function(ev) {
+                if (hasSound) playSound(soundDuration, soundFreqDial);
+                getBtnVal(this); 
+                disableBtns([dialBtn, hangupBtn]); 
+                disableBtns(keys); 
+                evalAccuracy(); 
+                nextTrial();
+            };
+            hangupBtn.onclick = function(ev) {
+                if (hasSound) playSound(soundDuration, soundFreqDial);
+                getBtnVal(this); 
+                disableBtns([dialBtn, hangupBtn]); 
+                disableBtns(keys); 
+                evalAccuracy(); 
+                nextTrial();
+            };
+        }
+        // ---------------------------------
+        // sound
+        function setupSound() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext);
+            playSound(0, 0); // dummy, no sound
+        }
+        function playSound(duration, freq) {
+            let sound = audioCtx.createOscillator();
+            sound.type = "sine";
+            sound.frequency.value = freq;
+            sound.connect(audioCtx.destination);
+            if (sound.noteOn) sound.start = sound.noteOn; // ?
+            sound.start(); 
+            sound.stop(audioCtx.currentTime + duration);
+        }
+        // ---------------------------------
+        // sequence functions
+        function adjustInitialParams() {
+            hasSound = document.getElementById("hasSound").checked;
+            feedback = document.getElementById("feedback").checked;
+            let nTrials = parseInt(document.getElementById("nTrials").value); 
+            if (!isNaN(nTrials)) {
+                if ((nTrials >= 1) & (nTrials <= 100)) N = nTrials;
+            }
+            document.getElementById("N").textContent = N;
+            let lvlStart = parseInt(document.getElementById("lvlStart").value); 
+            if (!isNaN(lvlStart)) {
+                if ((lvlStart >= 1) & (lvlStart <= 10)) lvl = lvlStart;
+            }
+            outputTxt.rows = N + 5;
+        }
+        function randomSeq(min, max, len) {
+            let seq = [];
+            let j = 0;
+            for (let i = 0; i < len; i++) {
+                seq.push(Math.floor(Math.random() * (max + 1 - min) + min));
+            }
+            return seq;
+        }
+        function getStates(len) {
+            seqState.length = 0;
+            seqState.push(0); seqState.push(0);
+            for (let i = 0; i < len; i++) {
+                seqState.push(1); // mark
+                //seqState.push(2); // keep
+                seqState.push(3); // remove
+                seqState.push(0); // empty
+            }
+        }
+        // ---------------------------------
+        // main game loop functions
+        function update(delta) {
+            ++updateCount;
+            if (seqState[updateCount] == 1) ++item; // update progress only at flash state
+            if (updateCount > 3*seqModel.length + 1) isRunning = false;
+        }
+        function draw() {
+            switch (seqState[updateCount]) {
+                // empty == 0
+                case 0:
+                    break;
+                // flash state == 1
+                case 1:
+                    if (seqModel[item] === "dial") { 
+                        document.getElementById(seqModel[item]).classList.add("clicked");
+                        document.getElementById(seqModel[item]).classList.remove("dial");
+                        if (hasSound) playSound(soundDuration, soundFreqDial);
+                    } 
+                    else {
+                        document.getElementById(seqModel[item]).classList.add("clicked");
+                        if (hasSound) playSound(soundDuration, soundFreq);
+                    }
+                    break;
+                // flashed state == 2
+                case 2:
+                    break;
+                // removed state == 3
+                case 3:
+                    if (seqModel[item] === "dial") { 
+                        document.getElementById(seqModel[item]).classList.remove("clicked");
+                        document.getElementById(seqModel[item]).classList.add("dial");
+                    }
+                    else {
+                        document.getElementById(seqModel[item]).classList.remove("clicked");
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+        function loop(timestamp) {
+            delta = timestamp - lastRendered;
+            if (delta > minDelta) {
+                update(delta);
+                if (isRunning) draw();
+                lastRendered = timestamp;
+            }
+            reqID = requestAnimationFrame(loop);
+            // exit recursion
+            if (!isRunning) {
+                //stopbtn.click(); // simulate click
+                stop();
+            }
+        }
+        // ---------------------------------
+        // start and stop game loop
+        function start() {
+            if (!reqID) {
+                //console.log("start");
+                setTrial(lvl);
+                disableBtns(keys);
+                disableBtns([startBtn]); startBtn.style.display = "none";
+                isRunning = true;
+                reqID = requestAnimationFrame(loop);
+            }
+        }
+        function stop() {
+            if (reqID) {
+                //console.log("stop");
+                cancelAnimationFrame(reqID);
+                reqID = undefined;
+                isRunning = false;
+                enableBtns(keys);
+                enableBtns([dialBtn, hangupBtn]);
+                trackNumPad(keys);
+            } 
+        }
+        // ---------------------------------
+        // trial and phase functions
+        function setTrial() {
+            updateCount = -1; item = -1;
+            isAccurate = 0; seqClicked = "";
+            n++;
+            seqModel = randomSeq(0, 9, lvl);
+            seqModel.push("dial");
+            getStates(lvl+1);
+            document.getElementById("n").textContent = n+0;
+            document.getElementById("N").textContent = N;
+        }
+        function evalAccuracy() {
+            seqModel.pop();
+            if (seqClicked.endsWith(hangupBtn.value)) {
+                isAccurate = -1;
+                seqClicked = seqClicked.substr(0, seqClicked.length - 1);
+            } else {
+                seqClicked = seqClicked.substr(0, seqClicked.length - 1);
+                if (seqModel.join("") == seqClicked) {
+                    isAccurate = 1;
+                    if (lvl > high_score) high_score = lvl;
+                }
+                else {
+                    isAccurate = 0;
+                }
+                score += isAccurate;
+            }
+            writeData();
+        }
+        function writeData() {
+            outputTxt.value += "\n" + n + "," + N + "," + lvl + "," + seqModel.join("") + "," + seqClicked + "," + isAccurate;
+        }
+        function nextTrial() {
+            switch (isAccurate) {
+                case 1:
+                    lvl++;
+                    if (feedback) gameBody.classList.add("correctResp");
+                    break;
+                case 0:
+                    if (feedback) gameBody.classList.add("wrongResp");
+                    if (lvl > 1) lvl--;
+                    break;
+                case -1:
+                    if (feedback) gameBody.classList.add("NAResp");
+                    if (lvl > 1) lvl--;
+                    break;
+                default: 
+                    console.log("err???");
+            }
+            outID = setTimeout(function() {
+                game.scrollIntoView(true);
+                if (feedback) gameBody.classList.remove("correctResp", "wrongResp", "NAResp");
+                if (n < (N-1)) {
+                    enableBtns([startBtn]);
+                    startBtn.style.display = "block";
+                }
+                else {
+                    done();
+                }
+            }, 1000); 
+        }
+        function done() {
+            clearTimeout(outID);
+            disableBtns([startBtn, dialBtn]);
+            disableBtns(keys);
+            outputTxt.value += "\n\n" + "Number of trials: " + N;
+            outputTxt.value += "\n" + "Proportion correct: " + (score/N).toFixed(2);
+            outputTxt.value += "\n" + "Longest sequence correct: " + high_score;
+            document.getElementById("heading").style.display = "block";
+            document.getElementById("game").style.display = "none";
+            document.getElementById("res").style.display = "block";
+        }
+        // ---------------------------------
+        // init
+        document.getElementById("res").style.display = "none";
+        document.getElementById("n").textContent = n + 1;
+        document.getElementById("N").textContent = N;
+        document.getElementById("hasSound").checked = true;
+        document.getElementById("feedback").checked = true;
+        document.getElementById("nTrials").value = N;
+        document.getElementById("lvlStart").value = lvl;
+        disableBtns([startBtn, dialBtn]);
+        disableBtns(keys);
+        gameBtn.onclick = function(ev) {
+            startBtn.onclick = function(ev) {start();};
+            document.getElementById("heading").style.display = "none";
+            document.getElementById("instr").style.display = "none";
+            enableBtns([startBtn]);
+            adjustInitialParams();
+            setupSound();
+        };
+    }
+    </script>
+</body>
+</html>
